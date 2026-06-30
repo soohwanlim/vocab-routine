@@ -123,9 +123,33 @@ function targetLevel() { return LEVELS.find((level) => level.grade === state.pro
 function shuffle(items) { return [...items].sort(() => Math.random() - 0.5); }
 
 function buildQueue() {
-  const due = dueWords();
-  const fallback = [...state.words].sort((a, b) => (a.nextReviewAt || "").localeCompare(b.nextReviewAt || "")).slice(0, 10);
-  queue = shuffle(due.length ? due : fallback).map((word) => ({ wordId: word.id, mode: "normal", direction: Math.random() < 0.35 ? "meaning-to-word" : "word-to-meaning" }));
+  const words = dueWords();
+  queue = [
+    ...words.map((word) => ({ wordId: word.id, mode: "preview", direction: "word-to-meaning" })),
+    ...words.map((word) => ({ wordId: word.id, mode: "quiz", direction: "word-to-meaning" })),
+    ...words.map((word) => ({ wordId: word.id, mode: "quiz", direction: "meaning-to-word" })),
+  ];
+}
+
+function normalizeAnswer(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\uac00-\ud7a3]/gi, "")
+    .trim();
+}
+
+function meaningCandidates(value) {
+  return String(value || "")
+    .split(/[,;/\n]|\s+-\s+|\s+\|\s+|\u00b7/)
+    .map(normalizeAnswer)
+    .filter(Boolean);
+}
+
+function isCorrectAnswer(word, direction, input) {
+  const actual = normalizeAnswer(input);
+  if (!actual) return false;
+  if (direction === "meaning-to-word") return actual === normalizeAnswer(word.word);
+  return meaningCandidates(word.meaning).some((expected) => actual === expected || (actual.length >= 2 && expected.includes(actual)) || (expected.length >= 2 && actual.includes(expected)));
 }
 
 function switchView(name) {
@@ -161,37 +185,58 @@ function renderToday() {
 function renderStudy() {
   if (!state.words.length) {
     currentCard = null;
-    el.promptLabel.textContent = "단어장이 비어 있어요";
-    el.quizWord.textContent = "단어를 추가해 주세요";
-    el.quizTag.textContent = "단어장";
+    el.promptLabel.textContent = "\uB2E8\uC5B4\uC7A5\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694.";
+    el.quizWord.textContent = "\uB2E8\uC5B4\uB97C \uCD94\uAC00\uD574 \uC8FC\uC138\uC694.";
+    el.quizTag.textContent = "\uB2E8\uC5B4\uC7A5";
     el.answerPanel.hidden = true;
-    if (el.answerInput) { el.answerInput.value = ""; el.answerInput.disabled = true; }
-    setAnswerButtons(false);
+    if (el.answerInput) { el.answerInput.value = ""; el.answerInput.disabled = true; el.answerInput.closest("label").hidden = true; }
+    setAnswerButtons();
     return;
   }
   if (!currentCard) {
     if (!queue.length) buildQueue();
     currentCard = queue.shift() || null;
   }
+  if (!currentCard) {
+    el.promptLabel.textContent = "\uC624\uB298 \uD559\uC2B5\uC774 \uB05D\uB0AC\uC5B4\uC694.";
+    el.quizWord.textContent = "\uB0B4\uC77C \uB2E4\uC2DC \uBCF5\uC2B5\uD574\uC694";
+    el.quizTag.textContent = "\uC644\uB8CC";
+    el.answerMeaning.textContent = "\uC624\uB298 \uB098\uC628 \uB2E8\uC5B4\uB294 \uBAA8\uB450 \uD6D1\uACE0 \uC591\uBC29\uD5A5\uC73C\uB85C \uD480\uC5C8\uC5B4\uC694.";
+    el.answerExample.textContent = "";
+    el.answerNote.textContent = "";
+    el.answerPanel.hidden = false;
+    if (el.answerInput) { el.answerInput.value = ""; el.answerInput.disabled = true; el.answerInput.closest("label").hidden = true; }
+    setAnswerButtons();
+    return;
+  }
   const word = state.words.find((item) => item.id === currentCard?.wordId) || state.words[0];
-  currentCard = { wordId: word.id, mode: currentCard?.mode || "normal", direction: currentCard?.direction || "word-to-meaning" };
+  currentCard = { wordId: word.id, mode: currentCard?.mode || "quiz", direction: currentCard?.direction || "word-to-meaning", graded: Boolean(currentCard?.graded) };
   const reverse = currentCard.direction === "meaning-to-word";
-  el.promptLabel.textContent = currentCard.mode === "reinforce" ? "방금 맞힌 단어 재확인" : (reverse ? "뜻을 보고 영어를 떠올려 보세요" : "단어의 뜻을 떠올려 보세요");
+  const preview = currentCard.mode === "preview";
+  el.promptLabel.textContent = preview ? "\uBA3C\uC800 \uB2E8\uC5B4\uC640 \uB73B\uC744 \uD55C \uBC88 \uD6D1\uC5B4\uBCF4\uC138\uC694" : (reverse ? "\uB73B\uC744 \uBCF4\uACE0 \uC601\uC5B4\uB97C \uC785\uB825\uD558\uC138\uC694" : "\uB2E8\uC5B4\uB97C \uBCF4\uACE0 \uB73B\uC744 \uC785\uB825\uD558\uC138\uC694");
   el.quizWord.textContent = reverse ? word.meaning : word.word;
-  el.quizTag.textContent = reverse ? "뜻 → 영어" : (word.tag || "단어장");
-  el.answerMeaning.textContent = reverse ? word.word : word.meaning;
-  el.answerExample.textContent = word.example || "예문이 아직 없어요.";
-  el.answerNote.textContent = word.note || "";
-  el.answerPanel.hidden = true;
-  if (el.answerInput) { el.answerInput.value = ""; el.answerInput.disabled = false; el.answerInput.placeholder = reverse ? "영어 단어를 입력해보세요" : "뜻을 입력해보세요"; }
-  setAnswerButtons(false);
+  el.quizTag.textContent = preview ? (word.tag || "\uB2E8\uC5B4\uC7A5") : (reverse ? "\uB73B \u2192 \uC601\uC5B4" : "\uB2E8\uC5B4 \u2192 \uB73B");
+  el.answerMeaning.textContent = preview || reverse ? word.word : word.meaning;
+  el.answerExample.textContent = preview ? word.meaning : (word.example || "\uC608\uBB38\uC774 \uC544\uC9C1 \uC5C6\uC5B4\uC694.");
+  el.answerNote.textContent = preview ? (word.example || word.note || "") : (word.note || "");
+  el.answerPanel.hidden = !preview && !currentCard.graded;
+  if (el.answerInput) {
+    el.answerInput.closest("label").hidden = preview;
+    el.answerInput.value = "";
+    el.answerInput.disabled = preview || currentCard.graded;
+    el.answerInput.placeholder = reverse ? "\uC601\uC5B4 \uB2E8\uC5B4\uB97C \uC785\uB825\uD574\uBCF4\uC138\uC694" : "\uB73B\uC744 \uC785\uB825\uD574\uBCF4\uC138\uC694";
+  }
+  setAnswerButtons();
 }
 
-function setAnswerButtons(answerVisible) {
-  el.showAnswerButton.hidden = answerVisible || !currentCard;
-  el.wrongButton.hidden = !answerVisible || !currentCard;
-  el.unknownButton.hidden = !answerVisible || !currentCard;
-  el.correctButton.hidden = !answerVisible || !currentCard;
+function setAnswerButtons() {
+  const hasCard = Boolean(currentCard);
+  const preview = currentCard?.mode === "preview";
+  el.showAnswerButton.hidden = !hasCard;
+  el.showAnswerButton.textContent = preview || currentCard?.graded ? "\uB2E4\uC74C" : "\uCC44\uC810\uD558\uAE30";
+  el.wrongButton.hidden = true;
+  el.unknownButton.hidden = true;
+  el.correctButton.hidden = true;
 }
 
 function updateStreak() {
@@ -202,26 +247,51 @@ function updateStreak() {
   state.stats.lastStudiedDate = today;
 }
 
-async function answerCurrent(result) {
+async function recordAnswer(result) {
   const word = state.words.find((item) => item.id === currentCard?.wordId);
-  if (!word) return;
+  if (!word) return null;
   updateStreak();
   word.lastStudiedAt = todayKey();
+  word.nextReviewAt = addDays(1);
   if (result === "correct") {
     word.correctCount += 1;
-    word.mastery = Math.min(3, word.mastery + (currentCard.mode === "reinforce" ? 1 : 0.8));
-    word.nextReviewAt = addDays([1, 2, 5, 10][Math.round(word.mastery)] || 14);
-    if (currentCard.mode !== "reinforce") queue.splice(Math.min(queue.length, 2), 0, { wordId: word.id, mode: "reinforce", direction: currentCard.direction });
+    word.mastery = Math.min(3, word.mastery + 0.5);
   } else {
     if (result === "unknown") word.unknownCount += 1;
     else word.wrongCount += 1;
-    word.mastery = Math.max(0, word.mastery - (result === "unknown" ? 0.4 : 1));
-    word.nextReviewAt = todayKey();
-    queue.splice(Math.min(queue.length, 2), 0, { wordId: word.id, mode: "normal", direction: currentCard.direction });
+    word.mastery = Math.max(0, word.mastery - 0.5);
   }
-  currentCard = null;
   await saveState();
-  renderAll();
+  return word;
+}
+
+async function gradeCurrentAnswer() {
+  const word = state.words.find((item) => item.id === currentCard?.wordId);
+  if (!word || currentCard?.mode !== "quiz" || currentCard.graded) return;
+  const input = el.answerInput?.value || "";
+  const result = input.trim() ? (isCorrectAnswer(word, currentCard.direction, input) ? "correct" : "wrong") : "unknown";
+  await recordAnswer(result);
+  currentCard.graded = true;
+  const reverse = currentCard.direction === "meaning-to-word";
+  el.answerMeaning.textContent = reverse ? word.word : word.meaning;
+  el.answerExample.textContent = word.example || "\uC608\uBB38\uC774 \uC544\uC9C1 \uC5C6\uC5B4\uC694.";
+  const feedback = result === "correct" ? "\uC815\uB2F5\uC774\uC5D0\uC694." : result === "unknown" ? "\uBE48 \uB2F5\uC774\uB77C \uBAA8\uB974\uACA0\uC5B4\uC694\uB85C \uAE30\uB85D\uD588\uC5B4\uC694." : "\uD2C0\uB838\uC5B4\uC694. \uC815\uB2F5\uC744 \uD655\uC778\uD574 \uC8FC\uC138\uC694.";
+  el.answerNote.textContent = word.note ? feedback + " " + word.note : feedback;
+  el.answerPanel.hidden = false;
+  if (el.answerInput) el.answerInput.disabled = true;
+  setAnswerButtons();
+  renderToday();
+  renderWords();
+}
+
+function nextStudyCard() {
+  currentCard = null;
+  renderStudy();
+}
+
+async function answerCurrent(result) {
+  await recordAnswer(result);
+  nextStudyCard();
 }
 
 function renderWords() {
@@ -498,8 +568,8 @@ function speakCurrentWord() {
 function bindEvents() {
   el.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
   el.startStudyButton.addEventListener("click", () => switchView("study"));
-  el.showAnswerButton.addEventListener("click", () => { if (el.answerInput) el.answerInput.disabled = true; el.answerPanel.hidden = false; setAnswerButtons(true); });
-  el.answerInput?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); el.showAnswerButton.click(); } });
+  el.showAnswerButton.addEventListener("click", () => { if (!currentCard) return; if (currentCard.mode === "preview" || currentCard.graded) nextStudyCard(); else gradeCurrentAnswer(); });
+  el.answerInput?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); if (!currentCard?.graded) gradeCurrentAnswer(); else nextStudyCard(); } });
   el.correctButton.addEventListener("click", () => answerCurrent("correct"));
   el.wrongButton.addEventListener("click", () => answerCurrent("wrong"));
   el.unknownButton.addEventListener("click", () => answerCurrent("unknown"));
