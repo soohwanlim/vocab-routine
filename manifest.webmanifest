@@ -1,0 +1,17 @@
+﻿{
+  "name": "단어 루틴",
+  "short_name": "단어루틴",
+  "description": "사용자 본인의 AI API 키로 단어장을 만들고 로컬에서 복습하는 영어 단어 앱",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#f4f7f5",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
