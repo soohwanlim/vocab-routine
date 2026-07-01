@@ -29,7 +29,7 @@ const initialState = {
   words: [],
   settings: { ai: { provider: "gemini", apiKey: "", model: "gemini-3.5-flash" } },
   stats: { streak: 0, lastStudiedDate: "" },
-  profile: { targetLevel: "8급" },
+  profile: { targetLevel: "8급", studyScope: "due" },
 };
 
 let db;
@@ -44,7 +44,7 @@ const addDays = (days) => new Date(Date.now() + days * DAY).toISOString().slice(
 const el = {
   tabs: document.querySelectorAll(".tab"), views: document.querySelectorAll(".view"), installButton: $("#installButton"),
   todayHeadline: $("#todayHeadline"), todaySubtext: $("#todaySubtext"), startStudyButton: $("#startStudyButton"), dueCount: $("#dueCount"), masteredCount: $("#masteredCount"), streakCount: $("#streakCount"), currentGrade: $("#currentGrade"), nextGradeText: $("#nextGradeText"), gradeProgress: $("#gradeProgress"),
-  promptLabel: $("#promptLabel"), quizWord: $("#quizWord"), quizTag: $("#quizTag"), answerPanel: $("#answerPanel"), answerMeaning: $("#answerMeaning"), answerExample: $("#answerExample"), answerNote: $("#answerNote"), answerInput: $("#answerInput"), showAnswerButton: $("#showAnswerButton"), wrongButton: $("#wrongButton"), unknownButton: $("#unknownButton"), correctButton: $("#correctButton"), speakButton: $("#speakButton"),
+  studyScope: $("#studyScope"), promptLabel: $("#promptLabel"), quizWord: $("#quizWord"), quizTag: $("#quizTag"), answerPanel: $("#answerPanel"), answerMeaning: $("#answerMeaning"), answerExample: $("#answerExample"), answerNote: $("#answerNote"), answerInput: $("#answerInput"), showAnswerButton: $("#showAnswerButton"), wrongButton: $("#wrongButton"), unknownButton: $("#unknownButton"), correctButton: $("#correctButton"), speakButton: $("#speakButton"),
   wordForm: $("#wordForm"), wordInput: $("#wordInput"), meaningInput: $("#meaningInput"), exampleInput: $("#exampleInput"), bulkInput: $("#bulkInput"), bulkAddButton: $("#bulkAddButton"), bulkStatus: $("#bulkStatus"), searchInput: $("#searchInput"), weakFilter: $("#weakFilter"), seedButton: $("#seedButton"), wordList: $("#wordList"), wordItemTemplate: $("#wordItemTemplate"), exportDeckButton: $("#exportDeckButton"), importDeckInput: $("#importDeckInput"),
   levelTitle: $("#levelTitle"), levelMeta: $("#levelMeta"), levelFocus: $("#levelFocus"), studyTargetText: $("#studyTargetText"), aiProvider: $("#aiProvider"), aiApiKey: $("#aiApiKey"), aiModel: $("#aiModel"), targetLevel: $("#targetLevel"), aiTopic: $("#aiTopic"), saveAiButton: $("#saveAiButton"), generateDeckButton: $("#generateDeckButton"), aiStatus: $("#aiStatus"), aiPreview: $("#aiPreview"), levelLadder: $("#levelLadder"),
 };
@@ -122,8 +122,24 @@ function levelByMastered(count) { return [...LEVELS].reverse().find((level) => c
 function targetLevel() { return LEVELS.find((level) => level.grade === state.profile.targetLevel) || LEVELS[1]; }
 function shuffle(items) { return [...items].sort(() => Math.random() - 0.5); }
 
+function selectedStudyWords() {
+  const scope = state.profile.studyScope || "due";
+  const today = todayKey();
+  const due = dueWords();
+  if (scope === "due") return due;
+  const sorted = [...state.words].sort((a, b) => {
+    const aDue = !a.nextReviewAt || a.nextReviewAt <= today;
+    const bDue = !b.nextReviewAt || b.nextReviewAt <= today;
+    if (aDue !== bDue) return aDue ? -1 : 1;
+    return (a.nextReviewAt || "").localeCompare(b.nextReviewAt || "") || a.word.localeCompare(b.word);
+  });
+  if (scope === "all") return sorted;
+  const limit = Number(scope) || 10;
+  return sorted.slice(0, limit);
+}
+
 function buildQueue() {
-  const words = dueWords();
+  const words = selectedStudyWords();
   queue = [
     ...words.map((word) => ({ wordId: word.id, mode: "preview", direction: "word-to-meaning" })),
     ...words.map((word) => ({ wordId: word.id, mode: "quiz", direction: "word-to-meaning" })),
@@ -183,6 +199,7 @@ function renderToday() {
 }
 
 function renderStudy() {
+  if (el.studyScope) el.studyScope.value = state.profile.studyScope || "due";
   if (!state.words.length) {
     currentCard = null;
     el.promptLabel.textContent = "\uB2E8\uC5B4\uC7A5\uC774 \uBE44\uC5B4 \uC788\uC5B4\uC694.";
@@ -198,10 +215,10 @@ function renderStudy() {
     currentCard = queue.shift() || null;
   }
   if (!currentCard) {
-    el.promptLabel.textContent = "\uC624\uB298 \uD559\uC2B5\uC774 \uB05D\uB0AC\uC5B4\uC694.";
+    el.promptLabel.textContent = state.profile.studyScope === "due" ? "\uC624\uB298 \uD559\uC2B5\uC774 \uB05D\uB0AC\uC5B4\uC694." : "\uC120\uD0DD\uD55C \uD559\uC2B5\uB7C9\uC744 \uB05D\uB0C8\uC5B4\uC694.";
     el.quizWord.textContent = "\uB0B4\uC77C \uB2E4\uC2DC \uBCF5\uC2B5\uD574\uC694";
     el.quizTag.textContent = "\uC644\uB8CC";
-    el.answerMeaning.textContent = "\uC624\uB298 \uB098\uC628 \uB2E8\uC5B4\uB294 \uBAA8\uB450 \uD6D1\uACE0 \uC591\uBC29\uD5A5\uC73C\uB85C \uD480\uC5C8\uC5B4\uC694.";
+    el.answerMeaning.textContent = "\uB354 \uD558\uACE0 \uC2F6\uC73C\uBA74 \uC704\uC758 \uD559\uC2B5\uB7C9\uC744 10\uAC1C, 20\uAC1C, \uC804\uCCB4\uB85C \uBC14\uAFD4\uBCF4\uC138\uC694.";
     el.answerExample.textContent = "";
     el.answerNote.textContent = "";
     el.answerPanel.hidden = false;
@@ -599,6 +616,11 @@ function bindEvents() {
   el.generateDeckButton.addEventListener("click", generateDeck);
   el.aiProvider.addEventListener("change", () => {
     if (!el.aiModel.value || ["gemini-3.5-flash", "gpt-4.1-mini"].includes(el.aiModel.value)) el.aiModel.value = el.aiProvider.value === "openai" ? "gpt-4.1-mini" : "gemini-3.5-flash";
+  });
+  el.studyScope?.addEventListener("change", async () => {
+    state.profile.studyScope = el.studyScope.value;
+    currentCard = null; queue = [];
+    await saveState(); renderStudy();
   });
   el.targetLevel.addEventListener("change", async () => { state.profile.targetLevel = el.targetLevel.value; await saveState(); renderLevel(); });
 }

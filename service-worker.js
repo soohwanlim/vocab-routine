@@ -1,9 +1,9 @@
-﻿const CACHE_NAME = "vocab-routine-v11";
+﻿const CACHE_NAME = "vocab-routine-v12";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=11",
-  "./mvp-app.js?v=11",
+  "./styles.css?v=12",
+  "./mvp-app.js?v=12",
   "./manifest.webmanifest",
   "./icon.svg",
 ];

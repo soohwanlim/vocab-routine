@@ -117,3 +117,11 @@ textarea { resize: vertical; }
   margin: 0 0 10px;
   font-size: 1rem;
 }
+
+.study-options {
+  margin-bottom: 10px;
+}
+
+.study-options label {
+  margin-bottom: 0;
+}

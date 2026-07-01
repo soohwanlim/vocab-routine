@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f4f7f5">
     <title>단어 루틴</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=12">
   </head>
   <body>
     <div class="app-shell">
@@ -50,6 +50,16 @@
         </section>
 
         <section class="view" id="studyView">
+          <div class="study-options">
+            <label>&#54617;&#49845;&#47049;
+              <select id="studyScope">
+                <option value="due">&#50724;&#45720; &#48373;&#49845;&#47564;</option>
+                <option value="10">10&#44060;</option>
+                <option value="20">20&#44060;</option>
+                <option value="all">&#51204;&#52404; &#45800;&#50612;</option>
+              </select>
+            </label>
+          </div>
           <div class="study-card">
             <p class="prompt-label" id="promptLabel">뜻을 떠올려 보세요</p>
             <button class="sound-button" id="speakButton" type="button">발음</button>
@@ -160,6 +170,6 @@
       </article>
     </template>
 
-    <script src="mvp-app.js?v=11" defer></script>
+    <script src="mvp-app.js?v=12" defer></script>
   </body>
 </html>
